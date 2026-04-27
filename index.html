@@ -10,8 +10,7 @@
   <script src="https://unpkg.com/jspdf-autotable@3.8.3/dist/jspdf.plugin.autotable.js"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
-  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f9fafb; }
     .card { background: white; border-radius: 1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); padding: 1.5rem; }
@@ -24,7 +23,7 @@
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
     th { background: #f8fafc; font-weight: 600; }
-    #mapa { height: 400px; width: 100%; border-radius: 1rem; }
+    .mapa-container { height: 250px; border-radius: 1rem; overflow: hidden; }
     .chat-container { height: 400px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; }
     .chat-bubble { max-width: 80%; padding: 0.5rem 1rem; border-radius: 1rem; animation: fadeIn 0.3s; }
     .chat-bot { background: #f3f4f6; align-self: flex-start; }
@@ -37,7 +36,7 @@
 
   <script>
     // ============================================================
-    // SANT'ANA SOLAR - IRRADIAÇÃO REAL POR COORDENADAS
+    // SANT'ANA SOLAR - COMPLETO COM MAPA NO PDF
     // ============================================================
     const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
     const DIAS_MES = [31,28,31,30,31,30,31,31,30,31,30,31];
@@ -49,51 +48,23 @@
     const ANOS_ANALISE = 25;
     const TAXA_MINIMA = { monofasico: 30, bifasico: 50, trifasico: 100 };
 
-    // ============================================================
-    // NOVA FUNÇÃO: Obter irradiação real via Open-Meteo (grátis)
-    // ============================================================
+    // IRRADIAÇÃO REAL VIA OPEN-METEO
     async function obterIrradiacaoReal(lat, lon) {
       const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=2022-01-01&end_date=2022-12-31&daily=shortwave_radiation_sum&timezone=America/Sao_Paulo`;
       const resp = await fetch(url);
       const data = await resp.json();
-      // shortwave_radiation_sum = Wh/m²/dia → converter para kWh/m²/dia
-      const irradDiaria = data.daily.shortwave_radiation_sum.map(v => +(v / 1000).toFixed(2));
-      // Agrupar por mês e calcular média mensal
+      const irradDiaria = data.daily.shortwave_radiation_sum.map(v => +(v / 3.6).toFixed(2));
       const irradMensal = MESES.map((_, i) => {
-        const mesInicio = new Date(2022, i, 1);
-        const mesFim = new Date(2022, i + 1, 0);
-        const diasMes = mesFim.getDate();
         const inicioIdx = data.daily.time.indexOf(`2022-${String(i+1).padStart(2,'0')}-01`);
+        const diasMes = new Date(2022, i+1, 0).getDate();
         const valores = irradDiaria.slice(inicioIdx, inicioIdx + diasMes);
         const media = valores.reduce((a,b)=>a+b,0) / valores.length;
         return +media.toFixed(2);
       });
-      const hspAnual = +(irradMensal.reduce((a,b)=>a+b,0) / 12).toFixed(2);
-      return { irradMensal, hspAnual };
+      return { irradMensal, hspAnual: +(irradMensal.reduce((a,b)=>a+b,0)/12).toFixed(2) };
     }
 
-    // Fallback: se a API falhar, usa tabela de capitais (mantida para contingência)
-    const CAPITAIS = {
-      'Aracaju': { uf:'SE', lat:-10.95, lon:-37.07, hsp:5.3 },
-      'São Paulo': { uf:'SP', lat:-23.55, lon:-46.63, hsp:4.8 },
-      // ... (manter todas as 27 capitais como fallback)
-    };
-
-    function gerarIrradiacaoMensalFallback(hspAnual, lat) {
-      const absLat = Math.abs(lat);
-      let amplitude = 0.15;
-      if (absLat >= 5 && absLat < 15) amplitude = 0.25;
-      else if (absLat >= 15 && absLat < 23) amplitude = 0.40;
-      else if (absLat >= 23) amplitude = 0.60;
-      return MESES.map((_, i) => {
-        const dist = lat < 0 ? Math.min(i, 12 - i) : Math.abs(i - 5.5);
-        return +(hspAnual * (1 + amplitude * Math.cos(dist * Math.PI / 6))).toFixed(2);
-      });
-    }
-
-    // ============================================================
-    // CÁLCULO DO SISTEMA COM HISTÓRICO DE 12 MESES
-    // ============================================================
+    // CÁLCULO DO SISTEMA
     function calcularSistemaDetalhado(params) {
       const { consumoHistorico, tarifa, irradMensal, performanceRatio = PR_PADRAO, custoPorWp = CUSTO_POR_WP_PADRAO, tipoLigacao = 'monofasico', taxaDesconto = TAXA_DESCONTO_PADRAO } = params;
       const consumoMedio = consumoHistorico.reduce((a,b)=>a+b,0) / 12;
@@ -114,8 +85,8 @@
           const consumo = consumoHistorico[mes];
           const saldo = geracao - consumo;
           if (saldo >= 0) {
-            creditoAcumulado += saldo;
-            economiaAnual += (consumo - Math.min(consumo, taxaMinima)) * tarifa;
+            creditoAcumulado += Math.max(0, saldo - taxaMinima);
+            economiaAnual += (consumo - taxaMinima) * tarifa;
           } else {
             const deficit = -saldo;
             const usadoCredito = Math.min(creditoAcumulado, deficit);
@@ -136,9 +107,7 @@
       }
       payback = +payback.toFixed(1);
       let vpl = -investimento;
-      for (let ano = 0; ano < ANOS_ANALISE; ano++) {
-        vpl += economiasAnuais[ano] / Math.pow(1 + taxaDesconto, ano + 1);
-      }
+      for (let ano = 0; ano < ANOS_ANALISE; ano++) vpl += economiasAnuais[ano] / Math.pow(1 + taxaDesconto, ano + 1);
       vpl = +vpl.toFixed(2);
       const econMensal = +(economiasAnuais[0] / 12).toFixed(2);
       let inversor = 'Inversor 5kW Monofásico 220V';
@@ -155,7 +124,7 @@
         { item:'Estrutura fixação', qtd:numeroModulos, un:'ganchos' },
         { item:'Trilho alumínio', qtd:Math.ceil(numeroModulos*1.2), un:'m' },
       ];
-      return { irradMensal, consumoMedio, consumoHistorico, tarifa, tipoLigacao, performanceRatio, taxaDesconto, taxaMinima, potenciaReal, numeroModulos, inversor, investimento, geracaoMensal, economiasAnuais, econMensal, econAnual: economiasAnuais[0], payback, vpl, bom };
+      return { irradMensal, consumoHistorico, tarifa, tipoLigacao, performanceRatio, taxaDesconto, taxaMinima, potenciaReal, numeroModulos, inversor, investimento, geracaoMensal, economiasAnuais, econMensal, econAnual: economiasAnuais[0], payback, vpl, bom };
     }
 
     function calcularParcela(valor, prazoMeses, taxaJurosMensal) {
@@ -179,39 +148,6 @@
       return null;
     }
 
-    function inicializarMapa(containerId, lat, lon, aoDesenhar) {
-      const mapa = L.map(containerId).setView([lat, lon], 20);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'OSM' }).addTo(mapa);
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution:'Esri' }).addTo(mapa);
-      const drawnItems = new L.FeatureGroup();
-      mapa.addLayer(drawnItems);
-      const drawControl = new L.Control.Draw({
-        draw: { polygon: true, polyline: false, rectangle: true, circle: false, marker: false },
-        edit: { featureGroup: drawnItems }
-      });
-      mapa.addControl(drawControl);
-      mapa.on(L.Draw.Event.CREATED, (e) => {
-        drawnItems.clearLayers();
-        const layer = e.layer;
-        drawnItems.addLayer(layer);
-        const coordenadas = layer.getLatLngs()[0];
-        const area = L.GeometryUtil.geodesicArea(coordenadas);
-        const azimute = calcularAzimute(coordenadas[0], coordenadas[1]);
-        aoDesenhar({ area: +area.toFixed(2), azimute: +azimute.toFixed(1), coordenadas });
-      });
-      return mapa;
-    }
-
-    function calcularAzimute(p1, p2) {
-      const [lat1, lon1] = [p1.lat * Math.PI/180, p1.lng * Math.PI/180];
-      const [lat2, lon2] = [p2.lat * Math.PI/180, p2.lng * Math.PI/180];
-      const dLon = lon2 - lon1;
-      const y = Math.sin(dLon) * Math.cos(lat2);
-      const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
-      let az = Math.atan2(y, x) * 180/Math.PI;
-      return (az + 360) % 360;
-    }
-
     const app = document.getElementById('app');
 
     // ========== TELA INICIAL ==========
@@ -229,7 +165,7 @@
             <div class="card cursor-pointer hover:shadow-xl transition" id="manualOption">
               <div class="text-4xl">⚙️</div>
               <h3 class="text-xl font-semibold mt-2">Simulação Manual</h3>
-              <p class="text-sm text-gray-500">Preencha os dados e desenhe seu telhado no mapa.</p>
+              <p class="text-sm text-gray-500">Preencha os dados e veja o mapa da sua localização.</p>
             </div>
           </div>
         </div>`;
@@ -237,7 +173,7 @@
       document.getElementById('manualOption').addEventListener('click', telaFormularioManual);
     }
 
-    // ========== SIMULAÇÃO MANUAL (com CEP + histórico) ==========
+    // ========== SIMULAÇÃO MANUAL (formulário → resultado com mapa) ==========
     function telaFormularioManual() {
       let usandoHistorico = false;
       const renderForm = () => {
@@ -254,7 +190,7 @@
               </div>
               <div><label class="text-sm font-medium">Tarifa (R$/kWh)</label><input id="tarifaInput" type="number" value="0.90" step="0.01" class="input-field"></div>
               <div><label class="text-sm font-medium">Tipo de ligação</label><select id="ligacaoSelect" class="input-field"><option value="monofasico">Monofásico</option><option value="bifasico">Bifásico</option><option value="trifasico">Trifásico</option></select></div>
-              <button id="avancarBtn" class="btn btn-primary w-full">Avançar para o Mapa</button>
+              <button id="simularBtn" class="btn btn-primary w-full">Simular Proposta</button>
               <button id="voltarBtn" class="btn btn-secondary w-full">Voltar</button>
             </div>
           </div>`;
@@ -268,7 +204,7 @@
           atualizarTela();
         });
         document.getElementById('voltarBtn').addEventListener('click', telaInicial);
-        document.getElementById('avancarBtn').addEventListener('click', async () => {
+        document.getElementById('simularBtn').addEventListener('click', async () => {
           const cep = document.getElementById('cepInput').value.trim();
           if (cep.length !== 8) return alert('Digite um CEP válido.');
           const tarifa = +document.getElementById('tarifaInput').value;
@@ -284,57 +220,21 @@
             const endereco = await buscarEnderecoPorCEP(cep);
             const coords = await buscarCoordenadas(endereco);
             if (!coords) return alert('Não foi possível encontrar as coordenadas do endereço.');
-            telaMapa(coords, { consumoHistorico, tarifa, tipoLigacao, endereco, cep });
+            const { irradMensal } = await obterIrradiacaoReal(coords.lat, coords.lon);
+            const resultado = calcularSistemaDetalhado({ consumoHistorico, tarifa, irradMensal, tipoLigacao });
+            resultado.endereco = `${endereco.logradouro}, ${endereco.bairro} - ${endereco.localidade}/${endereco.uf}`;
+            resultado.coords = coords;
+            resultado.cep = cep;
+            telaResultado(resultado);
           } catch (e) {
-            alert('Erro ao buscar CEP. Tente novamente.');
+            alert('Erro ao processar. Verifique o CEP e tente novamente.');
           }
         });
       };
-
-      app.innerHTML = renderForm();
-      bindEvents();
+      atualizarTela();
     }
 
-    function telaMapa(coords, dadosParciais) {
-      app.innerHTML = `
-        <div class="space-y-4 max-w-4xl mx-auto">
-          <h2 class="text-2xl font-bold">🗺️ Desenhe seu telhado</h2>
-          <p class="text-gray-600">Use a ferramenta de polígono para contornar o telhado.</p>
-          <div id="mapa" style="height:400px; border-radius:1rem;"></div>
-          <div id="infoTelhado" class="card hidden"><strong>Área:</strong> <span id="areaTelhado"></span> m² | <strong>Orientação:</strong> <span id="azimuteTelhado"></span>°</div>
-          <button id="calcularBtn" class="btn btn-primary w-full" disabled>Calcular Sistema</button>
-          <button id="voltarBtn" class="btn btn-secondary w-full">Voltar</button>
-        </div>`;
-      const aoDesenhar = (info) => {
-        document.getElementById('infoTelhado').classList.remove('hidden');
-        document.getElementById('areaTelhado').textContent = info.area;
-        document.getElementById('azimuteTelhado').textContent = info.azimute;
-        document.getElementById('calcularBtn').disabled = false;
-        dadosParciais.telhado = info;
-      };
-      inicializarMapa('mapa', coords.lat, coords.lon, aoDesenhar);
-      document.getElementById('voltarBtn').addEventListener('click', telaInicial);
-      document.getElementById('calcularBtn').addEventListener('click', async () => {
-        try {
-          const { irradMensal } = await obterIrradiacaoReal(coords.lat, coords.lon);
-          const resultado = calcularSistemaDetalhado({ ...dadosParciais, irradMensal });
-          resultado.endereco = `${dadosParciais.endereco.logradouro}, ${dadosParciais.endereco.bairro} - ${dadosParciais.endereco.localidade}/${dadosParciais.endereco.uf}`;
-          resultado.coords = coords;
-          telaResultado(resultado);
-        } catch (e) {
-          alert('Erro ao obter dados de irradiação. Usando estimativa local.');
-          // Fallback com base na latitude
-          const hspEstimado = Math.max(4.0, 6.0 - Math.abs(coords.lat) * 0.05);
-          const irradMensal = gerarIrradiacaoMensalFallback(hspEstimado, coords.lat);
-          const resultado = calcularSistemaDetalhado({ ...dadosParciais, irradMensal });
-          resultado.endereco = `${dadosParciais.endereco.logradouro}, ${dadosParciais.endereco.bairro} - ${dadosParciais.endereco.localidade}/${dadosParciais.endereco.uf}`;
-          resultado.coords = coords;
-          telaResultado(resultado);
-        }
-      });
-    }
-
-    // ========== CHATBOT ==========
+    // ========== CHATBOT (mantido) ==========
     function iniciarChatbot() {
       const state = { step: 0, answers: {}, messages: [] };
       const questions = [
@@ -411,15 +311,9 @@
           const tarifa = parseFloat(state.answers.tarifa);
           const consumoHistorico = state.answers.historico.split(',').map(Number);
           const { irradMensal } = await obterIrradiacaoReal(coords.lat, coords.lon);
-          const resultado = calcularSistemaDetalhado({
-            consumoHistorico, tarifa, irradMensal, tipoLigacao: state.answers.ligacao
-          });
-          resultado.cliente = {
-            nome: state.answers.nome,
-            email: state.answers.email,
-            endereco: `${endereco.logradouro}, ${endereco.bairro} - ${endereco.localidade}/${endereco.uf}`,
-            cep
-          };
+          const resultado = calcularSistemaDetalhado({ consumoHistorico, tarifa, irradMensal, tipoLigacao: state.answers.ligacao });
+          resultado.cliente = { nome: state.answers.nome, email: state.answers.email, endereco: `${endereco.logradouro}, ${endereco.bairro} - ${endereco.localidade}/${endereco.uf}`, cep };
+          resultado.coords = coords;
           telaResultado(resultado);
         } catch (e) {
           addMessage('Erro. Tente novamente.', 'bot');
@@ -429,11 +323,12 @@
       showQuestion(questions[0]);
     }
 
-    // ========== TELA DE RESULTADO ==========
+    // ========== TELA DE RESULTADO (com mapa) ==========
     function telaResultado(d) {
       app.innerHTML = `
         <div class="space-y-8 max-w-4xl mx-auto">
           <h2 class="text-3xl font-bold">📈 Resultado</h2>
+          ${d.endereco ? `<div class="card"><p><strong>Endereço:</strong> ${d.endereco}</p></div>` : ''}
           <div class="grid md:grid-cols-3 gap-6">
             <div class="card">
               <h3 class="font-semibold">Sistema</h3>
@@ -457,6 +352,10 @@
           </div>
           <div class="card"><canvas id="grafico" height="200"></canvas></div>
           <div class="card">
+            <h3 class="font-semibold mb-2">Localização</h3>
+            <div id="mapa" class="mapa-container"></div>
+          </div>
+          <div class="card">
             <h3 class="font-semibold mb-4">Calculadora de Financiamento</h3>
             <div class="grid md:grid-cols-4 gap-4">
               <div><label class="text-sm">Valor (R$)</label><input id="valorFinanciado" type="number" value="${d.investimento.toFixed(2)}" class="input-field"></div>
@@ -471,17 +370,23 @@
           </div>
           <div class="flex gap-4">
             <button id="reiniciarBtn" class="btn btn-secondary flex-1">Nova Simulação</button>
-            <button id="pdfBtn" class="btn btn-success flex-1">Baixar PDF</button>
+            <button id="pdfBtn" class="btn btn-success flex-1">Baixar PDF (com mapa)</button>
           </div>
         </div>`;
 
+      // Gráfico
       new Chart(document.getElementById('grafico'), {
         type:'bar', data:{ labels:MESES, datasets:[
           { label:'Geração', data:d.geracaoMensal, backgroundColor:'#facc15' },
-          { label:'Consumo', data:d.consumoHistorico, backgroundColor:'#94a3b8' }
-        ]}
+          { label:'Consumo', data:d.consumoHistorico, backgroundColor:'#94a3b8' } ] }
       });
 
+      // Mapa Leaflet
+      const mapa = L.map('mapa').setView([d.coords.lat, d.coords.lon], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:'OSM' }).addTo(mapa);
+      L.marker([d.coords.lat, d.coords.lon]).addTo(mapa).bindPopup(d.endereco || 'Local').openPopup();
+
+      // Financiamento
       document.getElementById('calcularFinanciamento').addEventListener('click', () => {
         const valor = +document.getElementById('valorFinanciado').value;
         const prazo = +document.getElementById('prazoFinanciamento').value;
@@ -494,18 +399,11 @@
       });
 
       document.getElementById('reiniciarBtn').addEventListener('click', telaInicial);
-      document.getElementById('pdfBtn').addEventListener('click', () => {
-        const dadosFin = {
-          valor: +document.getElementById('valorFinanciado')?.value,
-          prazo: +document.getElementById('prazoFinanciamento')?.value,
-          juros: +document.getElementById('jurosFinanciamento')?.value,
-          parcela: document.getElementById('valorParcela')?.textContent
-        };
-        gerarPDF(d, dadosFin);
-      });
+      document.getElementById('pdfBtn').addEventListener('click', () => gerarPDF(d));
     }
 
-    function gerarPDF(d, dadosFinanciamento) {
+    // PDF com captura do mapa
+    async function gerarPDF(d) {
       const doc = new window.jspdf.jsPDF();
       doc.setFontSize(18); doc.text('Sant\'Ana Solar - Proposta Técnica', 15, 20);
       doc.setFontSize(12);
@@ -514,14 +412,32 @@
       doc.text(`Investimento: R$ ${d.investimento.toFixed(2)}`, 15, 48);
       doc.text(`Economia mensal: R$ ${d.econMensal.toFixed(2)}`, 15, 56);
       doc.text(`Payback: ${d.payback} anos | VPL: R$ ${d.vpl}`, 15, 64);
-      doc.autoTable({ startY:70, head:[['Item','Qtd','Un']], body:d.bom.map(i=>[i.item,i.qtd,i.un]) });
-      if (dadosFinanciamento?.valor) {
-        const y = doc.lastAutoTable.finalY + 10;
-        doc.text(`Parcela: ${dadosFinanciamento.parcela} em ${dadosFinanciamento.prazo}x (${dadosFinanciamento.juros}% a.m.)`, 15, y);
+
+      // Captura o mapa
+      const mapaElement = document.getElementById('mapa');
+      if (mapaElement) {
+        const canvas = await html2canvas(mapaElement);
+        const imgData = canvas.toDataURL('image/png');
+        doc.addImage(imgData, 'PNG', 15, 70, 180, 60);
+        doc.autoTable({ startY: 135, head:[['Item','Qtd','Un']], body:d.bom.map(i=>[i.item,i.qtd,i.un]) });
+      } else {
+        doc.autoTable({ startY: 70, head:[['Item','Qtd','Un']], body:d.bom.map(i=>[i.item,i.qtd,i.un]) });
       }
+
+      // Financiamento se presente
+      const valorFin = document.getElementById('valorFinanciado')?.value;
+      const prazoFin = document.getElementById('prazoFinanciamento')?.value;
+      const jurosFin = document.getElementById('jurosFinanciamento')?.value;
+      const parcelaFin = document.getElementById('valorParcela')?.textContent;
+      if (valorFin && prazoFin && jurosFin && parcelaFin) {
+        const y = doc.lastAutoTable.finalY + 10;
+        doc.text(`Parcela: ${parcelaFin} em ${prazoFin}x (${jurosFin}% a.m.)`, 15, y);
+      }
+
       doc.save('proposta-santana-solar.pdf');
     }
 
+    // Inicialização
     telaInicial();
   </script>
 </body>
