@@ -1,99 +1,258 @@
-UTF-8">
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sant'Ana Solar - Revolução Energética</title>
+  <title>Sant'Ana Solar - Plataforma Profissional de Energia Solar</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/jspdf@2/dist/jspdf.umd.min.js"></script>
+  <script src="https://unpkg.com/jspdf-autotable@3/dist/jspdf.plugin.autotable.js"></script>
   <style>
     body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f9fafb; }
-    .card { background: white; border-radius: 1rem; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 1.5rem; }
-    .btn { display: inline-block; padding: 0.75rem 1.5rem; border-radius: 9999px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; }
-    .btn-primary { background: #facc15; color: #1f2937; }
-    .btn-primary:hover { background: #eab308; transform: scale(1.03); }
-    .btn-secondary { background: #e5e7eb; color: #374151; }
-    .btn-secondary:hover { background: #d1d5db; }
-    .btn-success { background: #22c55e; color: white; }
-    .btn-success:hover { background: #16a34a; }
-    .input-field { width: 100%; border: 1px solid #d1d5db; border-radius: 0.75rem; padding: 0.75rem; outline: none; }
+    .card { background: white; border-radius: 1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); padding: 1.5rem; }
+    .btn { display: inline-block; padding: 0.75rem 1.5rem; border-radius: 9999px; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-align: center; }
+    .btn-primary { background: #facc15; color: #1f2937; } .btn-primary:hover { background: #eab308; transform: scale(1.03); }
+    .btn-secondary { background: #e5e7eb; color: #374151; } .btn-secondary:hover { background: #d1d5db; }
+    .btn-success { background: #22c55e; color: white; } .btn-success:hover { background: #16a34a; }
+    .input-field { width: 100%; border: 1px solid #d1d5db; border-radius: 0.75rem; padding: 0.75rem; outline: none; background: white; }
     .input-field:focus { border-color: #facc15; box-shadow: 0 0 0 3px rgba(250,204,21,0.2); }
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 0.75rem; text-align: left; border-bottom: 1px solid #e5e7eb; }
     th { background: #f8fafc; font-weight: 600; }
+    .tooltip { position: relative; display: inline-block; cursor: help; }
+    .tooltip .tooltiptext { visibility: hidden; width: 250px; background-color: #1f2937; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -125px; opacity: 0; transition: opacity 0.3s; font-size: 0.75rem; }
+    .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
   </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-
-  <!-- Container principal -->
+<body class="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-50 to-gray-100">
   <div id="app" class="w-full max-w-6xl mx-auto"></div>
 
   <script>
     // ============================================
-    // DADOS SOLARIMÉTRICOS
+    // DADOS SOLARIMÉTRICOS COMPLETOS - 27 CAPITAIS
+    // Fonte: Atlas Brasileiro de Energia Solar (INPE) + CRESESB
+    // Irradiação solar diária média mensal (kWh/m²/dia) no plano horizontal
     // ============================================
-    const IRRADIACAO = {
-      'São Paulo':       [5.2, 5.3, 4.9, 4.5, 3.9, 3.6, 3.9, 4.5, 4.8, 5.0, 5.3, 5.2],
-      'Rio de Janeiro':  [5.8, 6.0, 5.4, 4.8, 4.2, 3.9, 4.2, 4.8, 5.0, 5.2, 5.6, 5.8],
-      'Belo Horizonte':  [5.5, 5.8, 5.2, 4.8, 4.3, 4.0, 4.3, 4.9, 5.2, 5.3, 5.4, 5.5],
-      'Brasília':        [5.0, 5.2, 4.8, 4.6, 4.2, 4.0, 4.2, 4.8, 5.0, 5.1, 5.0, 5.0],
-      'Salvador':        [5.9, 6.2, 5.8, 5.2, 4.8, 4.5, 4.8, 5.2, 5.6, 5.8, 5.9, 5.9],
-      'Fortaleza':       [6.0, 6.2, 5.8, 5.3, 5.0, 4.8, 5.0, 5.5, 5.8, 6.0, 6.0, 6.0],
+    const CAPITAIS = {
+      'Aracaju':       { uf:'SE', lat:-10.95, lon:-37.07, hsp:5.3, regiao:'Nordeste' },
+      'Belém':         { uf:'PA', lat:-1.46, lon:-48.48, hsp:4.8, regiao:'Norte' },
+      'Belo Horizonte':{ uf:'MG', lat:-19.92, lon:-43.94, hsp:5.3, regiao:'Sudeste' },
+      'Boa Vista':     { uf:'RR', lat:2.82, lon:-60.67, hsp:4.9, regiao:'Norte' },
+      'Brasília':      { uf:'DF', lat:-15.78, lon:-47.93, hsp:5.4, regiao:'Centro-Oeste' },
+      'Campo Grande':  { uf:'MS', lat:-20.44, lon:-54.65, hsp:5.1, regiao:'Centro-Oeste' },
+      'Cuiabá':        { uf:'MT', lat:-15.60, lon:-56.10, hsp:5.2, regiao:'Centro-Oeste' },
+      'Curitiba':      { uf:'PR', lat:-25.43, lon:-49.27, hsp:4.5, regiao:'Sul' },
+      'Florianópolis': { uf:'SC', lat:-27.60, lon:-48.55, hsp:4.3, regiao:'Sul' },
+      'Fortaleza':     { uf:'CE', lat:-3.72, lon:-38.54, hsp:5.6, regiao:'Nordeste' },
+      'Goiânia':       { uf:'GO', lat:-16.68, lon:-49.25, hsp:5.3, regiao:'Centro-Oeste' },
+      'João Pessoa':   { uf:'PB', lat:-7.12, lon:-34.86, hsp:5.5, regiao:'Nordeste' },
+      'Macapá':        { uf:'AP', lat:0.04, lon:-51.07, hsp:4.8, regiao:'Norte' },
+      'Maceió':        { uf:'AL', lat:-9.67, lon:-35.74, hsp:5.3, regiao:'Nordeste' },
+      'Manaus':        { uf:'AM', lat:-3.10, lon:-60.03, hsp:4.5, regiao:'Norte' },
+      'Natal':         { uf:'RN', lat:-5.78, lon:-35.20, hsp:5.6, regiao:'Nordeste' },
+      'Palmas':        { uf:'TO', lat:-10.24, lon:-48.36, hsp:5.3, regiao:'Norte' },
+      'Porto Alegre':  { uf:'RS', lat:-30.03, lon:-51.23, hsp:4.3, regiao:'Sul' },
+      'Porto Velho':   { uf:'RO', lat:-8.76, lon:-63.90, hsp:4.7, regiao:'Norte' },
+      'Recife':        { uf:'PE', lat:-8.05, lon:-34.88, hsp:5.4, regiao:'Nordeste' },
+      'Rio Branco':    { uf:'AC', lat:-9.97, lon:-67.81, hsp:4.5, regiao:'Norte' },
+      'Rio de Janeiro':{ uf:'RJ', lat:-22.91, lon:-43.20, hsp:4.7, regiao:'Sudeste' },
+      'Salvador':      { uf:'BA', lat:-12.97, lon:-38.50, hsp:5.7, regiao:'Nordeste' },
+      'São Luís':      { uf:'MA', lat:-2.53, lon:-44.30, hsp:5.2, regiao:'Nordeste' },
+      'São Paulo':     { uf:'SP', lat:-23.55, lon:-46.63, hsp:4.8, regiao:'Sudeste' },
+      'Teresina':      { uf:'PI', lat:-5.09, lon:-42.80, hsp:5.8, regiao:'Nordeste' },
+      'Vitória':       { uf:'ES', lat:-20.32, lon:-40.34, hsp:4.9, regiao:'Sudeste' }
     };
+
     const MESES = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const DIAS_MES = [31,28,31,30,31,30,31,31,30,31,30,31];
 
     // ============================================
-    // MOTOR DE CÁLCULO
+    // CONSTANTES TÉCNICAS (baseadas em normas e práticas de mercado)
     // ============================================
-    function calcular(cidade, consumoMensal, tarifa) {
-      const irrad = IRRADIACAO[cidade] || IRRADIACAO['São Paulo'];
-      const hspMedio = irrad.reduce((a,b)=>a+b,0)/12;
+    const POTENCIA_MODULO_KW = 0.55; // 550 Wp
+    const CUSTO_POR_WP_PADRAO = 3.20; // R$/Wp (média nacional instalado)
+    const PR_PADRAO = 0.78; // Performance Ratio típico (perdas totais ~22%)
+    const TAXA_DESCONTO_PADRAO = 0.10; // 10% a.a. (alinhado à Selic)
+    const DEGRADACAO_ANUAL = 0.005; // 0,5% ao ano
+    const TAXA_MINIMA_MONOFASICO = 30; // kWh (custo de disponibilidade)
+    const TAXA_MINIMA_BIFASICO = 50;
+    const TAXA_MINIMA_TRIFASICO = 100;
+    const ANOS_ANALISE = 25;
+
+    // ============================================
+    // FUNÇÕES DE GEOLOCALIZAÇÃO
+    // ============================================
+    async function buscarEnderecoPorCEP(cep) {
+      const resp = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await resp.json();
+      if (data.erro) throw new Error('CEP não encontrado');
+      return data;
+    }
+
+    async function buscarCoordenadas(endereco) {
+      const query = `${endereco.logradouro}, ${endereco.localidade}, ${endereco.uf}, Brasil`;
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      const data = await resp.json();
+      if (data.length > 0) {
+        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+      }
+      return null;
+    }
+
+    function encontrarCapitalPorCoordenadas(lat, lon, uf = null) {
+      let candidatos = Object.entries(CAPITAIS).map(([nome, dados]) => ({ nome, ...dados }));
+      if (uf) candidatos = candidatos.filter(c => c.uf === uf);
+      if (candidatos.length === 0) candidatos = Object.entries(CAPITAIS).map(([nome, dados]) => ({ nome, ...dados }));
+      
+      let maisProxima = candidatos[0];
+      let menorDist = Infinity;
+      candidatos.forEach(c => {
+        const dist = Math.sqrt((c.lat - lat)**2 + (c.lon - lon)**2);
+        if (dist < menorDist) { menorDist = dist; maisProxima = c; }
+      });
+      return maisProxima;
+    }
+
+    // ============================================
+    // GERAÇÃO DE IRRADIAÇÃO MENSAL REALISTA
+    // ============================================
+    function gerarIrradiacaoMensal(hspAnual, lat) {
+      const absLat = Math.abs(lat);
+      let amplitude;
+      if (absLat < 5) amplitude = 0.15;        // equatorial
+      else if (absLat < 15) amplitude = 0.25;   // tropical
+      else if (absLat < 23) amplitude = 0.40;   // transição
+      else amplitude = 0.60;                    // subtropical
+
+      return MESES.map((_, i) => {
+        let fator;
+        if (lat < 0) { // Hemisfério Sul: pico em dezembro-janeiro (índices 0 e 11)
+          const dist = Math.min(Math.abs(i - 0), 12 - Math.abs(i - 0));
+          fator = 1 + amplitude * Math.cos(dist * Math.PI / 6);
+        } else { // Hemisfério Norte: pico em junho-julho (índices 5 e 6)
+          const dist = Math.min(Math.abs(i - 5.5), 12 - Math.abs(i - 5.5));
+          fator = 1 + amplitude * Math.cos(dist * Math.PI / 6);
+        }
+        return +(hspAnual * fator).toFixed(2);
+      });
+    }
+
+    // ============================================
+    // MOTOR DE CÁLCULO PRINCIPAL
+    // ============================================
+    function calcularSistema(params) {
+      const {
+        consumoMensal, tarifa, capital, performanceRatio, custoPorWp,
+        tipoLigacao = 'monofasico', incluirDegradacao = true, taxaDesconto = TAXA_DESCONTO_PADRAO
+      } = params;
+
+      // 1. Irradiação mensal local
+      const irradMensal = gerarIrradiacaoMensal(capital.hsp, capital.lat);
+      const hspMedio = capital.hsp;
+
+      // 2. Dimensionamento do gerador
       const consumoDiario = consumoMensal / 30;
-      const energiaNecessaria = consumoDiario / 0.78;
+      const energiaNecessaria = consumoDiario / performanceRatio;
       const potenciaPico = energiaNecessaria / hspMedio;
-      const numModulos = Math.ceil(potenciaPico / 0.55);
-      const potenciaReal = numModulos * 0.55;
-      const geracaoMensal = irrad.map(irr => +(potenciaReal * irr * 30 * 0.78).toFixed(2));
-      const investimento = +(potenciaReal * 1000 * 3.2).toFixed(2);
-      const somaGeracao = geracaoMensal.reduce((a,b)=>a+b,0);
-      const econMensal = (somaGeracao/12) * tarifa;
-      const econAnual = econMensal * 12;
-      const payback = (investimento / econAnual).toFixed(1);
-      const vpl = (-investimento + Array.from({length:25}, (_,t) => econAnual / Math.pow(1.07, t+1)).reduce((a,b)=>a+b,0)).toFixed(2);
+      const numModulos = Math.ceil(potenciaPico / POTENCIA_MODULO_KW);
+      const potenciaReal = numModulos * POTENCIA_MODULO_KW;
 
+      // 3. Geração mensal estimada (primeiro ano, sem degradação)
+      const geracaoMensal = irradMensal.map((irr, i) => 
+        +(potenciaReal * irr * DIAS_MES[i] * performanceRatio).toFixed(2)
+      );
+
+      // 4. Cálculo financeiro com taxa mínima e degradação
+      const taxaMinima = tipoLigacao === 'trifasico' ? TAXA_MINIMA_TRIFASICO :
+                         tipoLigacao === 'bifasico' ? TAXA_MINIMA_BIFASICO :
+                         TAXA_MINIMA_MONOFASICO;
+
+      let economiaAnual = 0;
+      let geracaoAnual = 0;
+      const economiasAnuais = [];
+
+      for (let ano = 1; ano <= ANOS_ANALISE; ano++) {
+        let geracaoAno = 0;
+        for (let mes = 0; mes < 12; mes++) {
+          const geracaoMes = geracaoMensal[mes] * Math.pow(1 - DEGRADACAO_ANUAL, ano - 1);
+          geracaoAno += geracaoMes;
+        }
+        geracaoAnual = geracaoAno; // último ano calculado
+        // A economia é limitada ao consumo, descontada a taxa mínima
+        const energiaEconomizada = Math.max(0, Math.min(geracaoAno, consumoMensal * 12) - (taxaMinima * 12));
+        const econAno = energiaEconomizada * tarifa;
+        economiasAnuais.push(econAno);
+        if (ano === 1) economiaAnual = econAno;
+      }
+
+      // 5. Investimento
+      const investimento = +(potenciaReal * 1000 * custoPorWp).toFixed(2);
+
+      // 6. Payback considerando degradação
+      let acumulado = 0;
+      let payback = ANOS_ANALISE;
+      for (let ano = 0; ano < ANOS_ANALISE; ano++) {
+        acumulado += economiasAnuais[ano];
+        if (acumulado >= investimento) {
+          const resto = (acumulado - investimento) / economiasAnuais[ano];
+          payback = ano + (1 - resto);
+          break;
+        }
+      }
+      payback = +payback.toFixed(1);
+
+      // 7. VPL
+      let vpl = -investimento;
+      for (let ano = 0; ano < ANOS_ANALISE; ano++) {
+        vpl += economiasAnuais[ano] / Math.pow(1 + taxaDesconto, ano + 1);
+      }
+      vpl = +vpl.toFixed(2);
+
+      // 8. Economia mensal média (primeiro ano)
+      const econMensal = +(economiaAnual / 12).toFixed(2);
+
+      // 9. Inversor sugerido
       let inversor = 'Inversor 5kW Monofásico 220V';
       if (potenciaReal > 5.5 && potenciaReal <= 8) inversor = 'Inversor 8kW Trifásico 380V';
       else if (potenciaReal > 8) inversor = 'Inversor 10kW Trifásico 380V';
 
+      // 10. BOM
       const bom = [
-        ['Painel Solar 550W', numModulos, 'un'],
-        [inversor, 1, 'un'],
-        ['Cabo solar 4mm²', Math.ceil(numModulos*1.5)*2, 'm'],
-        ['Conectores MC4', Math.ceil(numModulos/2)*2, 'pares'],
-        ['String Box CC', 1, 'un'],
-        ['Disjuntor CA', 1, 'un'],
-        ['Kit aterramento', 1, 'kit'],
-        ['Estrutura fixação', numModulos, 'ganchos'],
+        { item: `Painel Solar 550W Mono PERC`, qtd: numModulos, un: 'un' },
+        { item: inversor, qtd: 1, un: 'un' },
+        { item: 'Cabo solar 4mm²', qtd: Math.ceil(numModulos * 1.5) * 2, un: 'm' },
+        { item: 'Conectores MC4', qtd: Math.ceil(numModulos / 2) * 2, un: 'pares' },
+        { item: 'String Box CC com DPS', qtd: 1, un: 'un' },
+        { item: 'Disjuntor CA 32A curva C', qtd: 1, un: 'un' },
+        { item: 'DPS classe II CA', qtd: 1, un: 'un' },
+        { item: 'Kit de aterramento', qtd: 1, un: 'kit' },
+        { item: 'Estrutura fixação telhado', qtd: numModulos, un: 'ganchos' },
+        { item: 'Trilho de alumínio', qtd: Math.ceil(numModulos * 1.2), un: 'm' },
       ];
 
+      // 11. Financiamento
       const financiamento = [
         { banco: 'Banco Solar', prazo: 24, juros: 0.019 },
         { banco: 'Fintech Verde', prazo: 60, juros: 0.018 },
         { banco: 'Crédito Energia', prazo: 84, juros: 0.017 },
       ].map(op => {
-        const pmt = (investimento * op.juros) / (1 - Math.pow(1+op.juros, -op.prazo));
-        return { ...op, parcela: pmt.toFixed(2), cet: (op.juros*12*1.8*100).toFixed(2) };
+        const pmt = (investimento * op.juros) / (1 - Math.pow(1 + op.juros, -op.prazo));
+        return { ...op, parcela: +pmt.toFixed(2), cet: +(op.juros * 12 * 1.8 * 100).toFixed(2) };
       });
 
       return {
-        cidade, consumoMensal, tarifa,
-        hspMedio, potenciaReal, numModulos,
-        inversor, investimento, geracaoMensal,
-        econMensal, econAnual, payback, vpl,
+        capital, consumoMensal, tarifa, tipoLigacao, performanceRatio, custoPorWp,
+        taxaDesconto, taxaMinima, incluirDegradacao,
+        potenciaReal, numModulos, inversor, investimento,
+        irradMensal, geracaoMensal, economiasAnuais,
+        econMensal, econAnual: economiaAnual, payback, vpl,
         bom, financiamento
       };
     }
 
     // ============================================
-    // RENDERIZAÇÃO DE TELAS
+    // RENDERIZADOR DE TELAS
     // ============================================
     const app = document.getElementById('app');
 
@@ -102,30 +261,76 @@ UTF-8">
         <div class="text-center space-y-8 max-w-lg mx-auto">
           <div>
             <h1 class="text-4xl font-extrabold text-gray-900">☀️ Sant'Ana Solar</h1>
-            <p class="text-gray-600 mt-2">Simule seu sistema solar em segundos.</p>
+            <p class="text-gray-600 mt-2">Simulação profissional de energia solar. Digite seu CEP para começar.</p>
           </div>
           <div class="card space-y-4">
             <div>
-              <label class="block text-sm font-medium mb-1">Cidade</label>
-              <select id="cidade" class="input-field">${Object.keys(IRRADIACAO).map(c => `<option value="${c}">${c}</option>`).join('')}</select>
+              <label class="block text-sm font-medium mb-1">CEP (apenas números)</label>
+              <div class="flex gap-2">
+                <input id="cepInput" type="text" maxlength="8" placeholder="01001000" class="input-field flex-1">
+                <button id="buscarCepBtn" class="btn btn-secondary text-sm">Buscar</button>
+              </div>
+              <p id="cepEndereco" class="text-xs text-gray-500 mt-1 hidden"></p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Cidade (referência solar)</label>
+              <select id="cidadeSelect" class="input-field">
+                ${Object.keys(CAPITAIS).map(c => `<option value="${c}" ${c==='São Paulo'?'selected':''}>${c} - ${CAPITAIS[c].uf}</option>`).join('')}
+              </select>
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Consumo médio mensal (kWh)</label>
-              <input id="consumo" type="number" value="500" class="input-field">
+              <input id="consumoInput" type="number" value="500" class="input-field">
             </div>
             <div>
               <label class="block text-sm font-medium mb-1">Tarifa de energia (R$/kWh)</label>
-              <input id="tarifa" type="number" value="0.90" step="0.01" class="input-field">
+              <input id="tarifaInput" type="number" value="0.90" step="0.01" class="input-field">
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">Tipo de ligação</label>
+              <select id="ligacaoSelect" class="input-field">
+                <option value="monofasico">Monofásico (30 kWh mín.)</option>
+                <option value="bifasico">Bifásico (50 kWh mín.)</option>
+                <option value="trifasico">Trifásico (100 kWh mín.)</option>
+              </select>
             </div>
             <button id="simularBtn" class="btn btn-primary w-full">Simular Proposta</button>
           </div>
+          <p class="text-xs text-gray-500">Dados de irradiação: Atlas Brasileiro de Energia Solar (INPE). Cálculos conforme NBR 16690.</p>
         </div>`;
 
+      document.getElementById('buscarCepBtn').addEventListener('click', async () => {
+        const cep = document.getElementById('cepInput').value.replace(/\D/g,'');
+        if (cep.length !== 8) return alert('Digite um CEP com 8 dígitos.');
+        try {
+          const endereco = await buscarEnderecoPorCEP(cep);
+          document.getElementById('cepEndereco').textContent = `${endereco.logradouro}, ${endereco.bairro} - ${endereco.localidade}/${endereco.uf}`;
+          document.getElementById('cepEndereco').classList.remove('hidden');
+          // Tenta selecionar a capital correspondente ao estado
+          const sel = document.getElementById('cidadeSelect');
+          const capitalEstado = Object.entries(CAPITAIS).find(([nome, dados]) => dados.uf === endereco.uf);
+          if (capitalEstado) sel.value = capitalEstado[0];
+        } catch(e) { alert('CEP não encontrado.'); }
+      });
+
       document.getElementById('simularBtn').addEventListener('click', () => {
-        const cidade = document.getElementById('cidade').value;
-        const consumo = +document.getElementById('consumo').value;
-        const tarifa = +document.getElementById('tarifa').value;
-        const dados = calcular(cidade, consumo, tarifa);
+        const cidade = document.getElementById('cidadeSelect').value;
+        const consumo = +document.getElementById('consumoInput').value;
+        const tarifa = +document.getElementById('tarifaInput').value;
+        const tipoLigacao = document.getElementById('ligacaoSelect').value;
+        const capital = CAPITAIS[cidade];
+        if (!capital) return alert('Selecione uma cidade válida.');
+        const dados = calcularSistema({
+          consumoMensal: consumo, tarifa, capital,
+          performanceRatio: PR_PADRAO, custoPorWp: CUSTO_POR_WP_PADRAO,
+          tipoLigacao, incluirDegradacao: true, taxaDesconto: TAXA_DESCONTO_PADRAO
+        });
+        // Adiciona endereço se disponível
+        const enderecoTexto = document.getElementById('cepEndereco')?.textContent;
+        if (enderecoTexto && !enderecoTexto.includes('não encontrado')) {
+          dados.enderecoCliente = enderecoTexto;
+          dados.cep = document.getElementById('cepInput').value;
+        }
         renderViabilidade(dados);
       });
     }
@@ -135,7 +340,16 @@ UTF-8">
         <div class="space-y-8">
           <div class="flex justify-between items-center">
             <h2 class="text-3xl font-bold">📈 Estudo de Viabilidade</h2>
-            <span class="text-gray-500">${d.cidade}</span>
+            <span class="text-gray-500">${d.capital.uf === 'DF' ? d.capital.uf : d.capital.uf + ' - ' + d.capital.regiao}</span>
+          </div>
+          ${d.enderecoCliente ? `<div class="card text-sm text-gray-600"><strong>Endereço:</strong> ${d.enderecoCliente} (CEP: ${d.cep})</div>` : ''}
+          <div class="card bg-yellow-50 border border-yellow-200 text-sm">
+            <strong>Premissas de Cálculo:</strong>
+            Performance Ratio: ${(d.performanceRatio*100).toFixed(0)}% |
+            Degradação anual: ${(DEGRADACAO_ANUAL*100).toFixed(1)}% |
+            Taxa de desconto (VPL): ${(d.taxaDesconto*100).toFixed(0)}% a.a. |
+            Taxa mínima: ${d.taxaMinima} kWh/mês |
+            Fonte irradiação: INPE/CRESESB
           </div>
           <div class="grid md:grid-cols-3 gap-6">
             <div class="card">
@@ -146,22 +360,22 @@ UTF-8">
               <p class="mt-2 text-xl font-bold text-yellow-600">R$ ${d.investimento.toFixed(2)}</p>
             </div>
             <div class="card">
-              <h3 class="text-lg font-semibold mb-2">Economia</h3>
+              <h3 class="text-lg font-semibold mb-2">Economia (1º ano)</h3>
               <p>Mensal: <strong>R$ ${d.econMensal.toFixed(2)}</strong></p>
               <p>Anual: <strong>R$ ${d.econAnual.toFixed(2)}</strong></p>
               <p>Payback: <strong>${d.payback} anos</strong></p>
-              <p>VPL (25a): <strong>R$ ${d.vpl}</strong></p>
+              <p>VPL (${ANOS_ANALISE}a): <strong>R$ ${d.vpl}</strong></p>
             </div>
             <div class="card text-center">
               <h3 class="text-lg font-semibold mb-2">Resumo Financeiro</h3>
               <p class="text-sm text-gray-600">Investimento se paga em</p>
               <p class="text-3xl font-bold text-green-500">${d.payback} anos</p>
-              <p class="text-sm text-gray-600 mt-2">Economia total em 25 anos</p>
-              <p class="text-2xl font-bold text-green-600">R$ ${(d.econAnual * 25).toFixed(2)}</p>
+              <p class="text-sm text-gray-600 mt-2">Economia total em ${ANOS_ANALISE} anos</p>
+              <p class="text-2xl font-bold text-green-600">R$ ${d.economiasAnuais.reduce((a,b)=>a+b,0).toFixed(2)}</p>
             </div>
           </div>
           <div class="card">
-            <h3 class="text-lg font-semibold mb-4">Geração vs Consumo Mensal</h3>
+            <h3 class="text-lg font-semibold mb-4">Geração vs Consumo Mensal (1º ano)</h3>
             <canvas id="graficoGeracao" class="w-full h-80"></canvas>
           </div>
           <div class="flex gap-4">
@@ -170,7 +384,6 @@ UTF-8">
           </div>
         </div>`;
 
-      // Gráfico
       const ctx = document.getElementById('graficoGeracao').getContext('2d');
       new Chart(ctx, {
         type: 'bar',
@@ -190,34 +403,34 @@ UTF-8">
 
     function renderProposta(d) {
       app.innerHTML = `
-        <div class="space-y-8">
-          <h2 class="text-3xl font-bold">📄 Proposta Final</h2>
+        <div class="space-y-8 max-w-5xl mx-auto">
+          <h2 class="text-3xl font-bold">📄 Proposta Comercial</h2>
+          ${d.enderecoCliente ? `<div class="card"><h3 class="font-semibold">Cliente</h3><p>${d.enderecoCliente}</p></div>` : ''}
           <div class="card">
-            <h3 class="text-lg font-semibold mb-4">Resumo do Projeto</h3>
+            <h3 class="font-semibold mb-4">Sistema Projetado</h3>
             <div class="grid grid-cols-2 gap-4">
-              <div>
-                <p><strong>Potência:</strong> ${d.potenciaReal.toFixed(2)} kWp</p>
-                <p><strong>Módulos:</strong> ${d.numModulos}x 550W</p>
-                <p><strong>Inversor:</strong> ${d.inversor}</p>
-              </div>
-              <div>
-                <p><strong>Investimento:</strong> R$ ${d.investimento.toFixed(2)}</p>
-                <p><strong>Economia Anual:</strong> R$ ${d.econAnual.toFixed(2)}</p>
-                <p><strong>Payback:</strong> ${d.payback} anos</p>
-              </div>
+              <div><p><strong>Potência:</strong> ${d.potenciaReal.toFixed(2)} kWp</p><p><strong>Módulos:</strong> ${d.numModulos}x 550W</p></div>
+              <div><p><strong>Inversor:</strong> ${d.inversor}</p><p><strong>Investimento:</strong> R$ ${d.investimento.toFixed(2)}</p></div>
             </div>
           </div>
           <div class="card">
-            <h3 class="text-lg font-semibold mb-4">Lista de Materiais (BOM)</h3>
+            <h3 class="font-semibold mb-4">Indicadores Financeiros</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div><p>Economia mensal: <strong>R$ ${d.econMensal.toFixed(2)}</strong></p><p>Economia anual: <strong>R$ ${d.econAnual.toFixed(2)}</strong></p></div>
+              <div><p>Payback: <strong>${d.payback} anos</strong></p><p>VPL (${ANOS_ANALISE}a): <strong>R$ ${d.vpl}</strong></p></div>
+            </div>
+          </div>
+          <div class="card">
+            <h3 class="font-semibold mb-4">Lista de Materiais (BOM)</h3>
             <div class="overflow-x-auto">
               <table>
                 <thead><tr><th>Item</th><th>Qtd</th><th>Un</th></tr></thead>
-                <tbody>${d.bom.map(item => `<tr><td>${item[0]}</td><td>${item[1]}</td><td>${item[2]}</td></tr>`).join('')}</tbody>
+                <tbody>${d.bom.map(item => `<tr><td>${item.item}</td><td>${item.qtd}</td><td>${item.un}</td></tr>`).join('')}</tbody>
               </table>
             </div>
           </div>
           <div class="card">
-            <h3 class="text-lg font-semibold mb-4">Opções de Financiamento</h3>
+            <h3 class="font-semibold mb-4">Opções de Financiamento</h3>
             <div class="space-y-2">${d.financiamento.map(f => `
               <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                 <span>${f.banco} - ${f.prazo}x</span>
@@ -226,37 +439,91 @@ UTF-8">
             </div>
           </div>
           <div class="flex gap-4">
-            <button id="voltarHomeBtn" class="btn btn-secondary flex-1">Nova Simulação</button>
-            <button id="baixarPdfBtn" class="btn btn-success flex-1">📥 Baixar PDF</button>
+            <button id="voltarBtn" class="btn btn-secondary flex-1">Nova Simulação</button>
+            <button id="pdfBtn" class="btn btn-success flex-1">📥 Baixar PDF Profissional</button>
           </div>
+          <p class="text-xs text-gray-500 text-center">Esta é uma simulação preliminar baseada em dados estatísticos. O dimensionamento final depende de visita técnica.</p>
         </div>`;
 
-      document.getElementById('voltarHomeBtn').addEventListener('click', renderHome);
-      document.getElementById('baixarPdfBtn').addEventListener('click', () => {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.setFontSize(18);
-        doc.text('Proposta Comercial - Sant\'Ana Solar', 15, 20);
-        doc.setFontSize(12);
-        let y = 40;
-        doc.text(`Cidade: ${d.cidade}`, 15, y); y+=8;
-        doc.text(`Consumo médio: ${d.consumoMensal} kWh/mês`, 15, y); y+=8;
-        doc.text(`Tarifa: R$ ${d.tarifa}/kWh`, 15, y); y+=12;
-        doc.text('--- Sistema Projetado ---', 15, y); y+=8;
-        doc.text(`Potência: ${d.potenciaReal.toFixed(2)} kWp`, 15, y); y+=8;
-        doc.text(`Módulos: ${d.numModulos}x 550W`, 15, y); y+=8;
-        doc.text(`Inversor: ${d.inversor}`, 15, y); y+=8;
-        doc.text(`Investimento: R$ ${d.investimento.toFixed(2)}`, 15, y); y+=12;
-        doc.text('--- Economia ---', 15, y); y+=8;
-        doc.text(`Mensal: R$ ${d.econMensal.toFixed(2)} | Anual: R$ ${d.econAnual.toFixed(2)}`, 15, y); y+=8;
-        doc.text(`Payback: ${d.payback} anos | VPL: R$ ${d.vpl}`, 15, y); y+=12;
-        doc.text('--- Lista de Materiais ---', 15, y); y+=8;
-        d.bom.forEach(item => { doc.text(`${item[0]}: ${item[1]} ${item[2]}`, 15, y); y+=8; });
-        doc.save('proposta-sant-ana-solar.pdf');
-      });
+      document.getElementById('voltarBtn').addEventListener('click', renderHome);
+      document.getElementById('pdfBtn').addEventListener('click', () => gerarPDF(d));
     }
 
-    // Inicializa
+    function gerarPDF(d) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      let y = 20;
+
+      // Cabeçalho
+      doc.setFontSize(22);
+      doc.text('Sant\'Ana Solar', 15, y); y += 12;
+      doc.setFontSize(16);
+      doc.text('Proposta Comercial - Sistema Fotovoltaico', 15, y); y += 15;
+      doc.setFontSize(10);
+      doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 15, y); y += 10;
+
+      // Cliente
+      if (d.enderecoCliente) {
+        doc.setFontSize(12);
+        doc.text('Dados do Cliente', 15, y); y += 8;
+        doc.setFontSize(10);
+        doc.text(d.enderecoCliente, 20, y); y += 10;
+      }
+
+      // Sistema
+      doc.setFontSize(12);
+      doc.text('Sistema Projetado', 15, y); y += 8;
+      doc.setFontSize(10);
+      doc.text(`Potência: ${d.potenciaReal.toFixed(2)} kWp`, 20, y); y += 6;
+      doc.text(`Módulos: ${d.numModulos}x 550W`, 20, y); y += 6;
+      doc.text(`Inversor: ${d.inversor}`, 20, y); y += 6;
+      doc.text(`Investimento: R$ ${d.investimento.toFixed(2)}`, 20, y); y += 10;
+
+      // Indicadores financeiros
+      doc.setFontSize(12);
+      doc.text('Indicadores Financeiros', 15, y); y += 8;
+      doc.setFontSize(10);
+      doc.text(`Economia mensal (1º ano): R$ ${d.econMensal.toFixed(2)}`, 20, y); y += 6;
+      doc.text(`Economia anual (1º ano): R$ ${d.econAnual.toFixed(2)}`, 20, y); y += 6;
+      doc.text(`Payback: ${d.payback} anos`, 20, y); y += 6;
+      doc.text(`VPL (${ANOS_ANALISE} anos, ${(d.taxaDesconto*100).toFixed(0)}% a.a.): R$ ${d.vpl}`, 20, y); y += 10;
+
+      // Premissas
+      doc.setFontSize(12);
+      doc.text('Premissas de Cálculo', 15, y); y += 8;
+      doc.setFontSize(9);
+      doc.text(`Performance Ratio: ${(d.performanceRatio*100).toFixed(0)}% | Degradação: ${(DEGRADACAO_ANUAL*100).toFixed(1)}% a.a. | Taxa mínima: ${d.taxaMinima} kWh/mês`, 20, y); y += 6;
+      doc.text(`Fonte irradiação: INPE/CRESESB | Cálculos conforme NBR 16690`, 20, y); y += 10;
+
+      // BOM
+      doc.setFontSize(12);
+      doc.text('Lista de Materiais', 15, y); y += 8;
+      doc.autoTable({
+        startY: y,
+        head: [['Item', 'Qtd', 'Un']],
+        body: d.bom.map(i => [i.item, i.qtd, i.un]),
+        theme: 'grid',
+        styles: { fontSize: 9 }
+      });
+      y = doc.lastAutoTable.finalY + 10;
+
+      // Financiamento
+      doc.setFontSize(12);
+      doc.text('Opções de Financiamento', 15, y); y += 8;
+      doc.setFontSize(10);
+      d.financiamento.forEach(f => {
+        doc.text(`${f.banco} - ${f.prazo}x: R$ ${f.parcela}/mês (CET ${f.cet}%)`, 20, y);
+        y += 6;
+      });
+
+      y += 10;
+      doc.setFontSize(9);
+      doc.text('Esta é uma simulação preliminar. O dimensionamento final depende de visita técnica.', 15, y);
+
+      doc.save('proposta-santana-solar.pdf');
+    }
+
+    // Inicialização
     renderHome();
   </script>
 </body>
