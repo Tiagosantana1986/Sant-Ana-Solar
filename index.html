@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sant'Ana Solar - Plataforma Completa</title>
+  <title>Sant'Ana Solar</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script src="https://unpkg.com/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
@@ -58,7 +58,7 @@
       });
     }
 
-    // ========== CÁLCULO ==========
+    // ========== CÁLCULO DO SISTEMA ==========
     function calcular(consumoHistorico, tarifa, irradMensal, tipoLigacao = 'monofasico') {
       const consumoMedio = consumoHistorico.reduce((a,b)=>a+b,0)/12;
       const hspMedio = irradMensal.reduce((a,b)=>a+b,0)/12;
@@ -110,7 +110,7 @@
     function gerarBOM(numModulos, inversor) {
       const m = numModulos;
       return [
-        { item:`Painel Solar 550W Mono PERC (Canadian Solar / Jinko)`, qtd:m, un:'un' },
+        { item:`Painel Solar 550W Mono PERC (Canadian/Jinko)`, qtd:m, un:'un' },
         { item:inversor, qtd:1, un:'un' },
         { item:'Cabo solar preto 4mm²', qtd:Math.ceil(m*1.2), un:'m' },
         { item:'Cabo solar vermelho 4mm²', qtd:Math.ceil(m*1.2), un:'m' },
@@ -154,10 +154,7 @@
 
     // ========== NAVEGAÇÃO ==========
     const app = document.getElementById('app');
-    let telaAtual = 'home';
-
     function navegar(tela, dados = null) {
-      telaAtual = tela;
       if (tela === 'home') renderHome();
       else if (tela === 'sobre') renderSobre();
       else if (tela === 'simular') renderSimular();
@@ -190,12 +187,12 @@
         <div class="card max-w-3xl mx-auto space-y-4">
           <button class="btn btn-secondary" id="voltarHome">← Voltar</button>
           <h2 class="text-3xl font-bold">Sant'Ana Solar</h2>
-          <p class="text-gray-700">Plataforma de inteligência solar que utiliza dados de satélite e engenharia de precisão para dimensionar sistemas fotovoltaicos.</p>
+          <p class="text-gray-700">Plataforma de inteligência solar com dados de satélite e engenharia de precisão.</p>
           <ul class="list-disc pl-5 text-gray-600">
-            <li>Irradiação real via satélite (Open-Meteo/NASA)</li>
+            <li>Irradiação real via Open-Meteo</li>
             <li>Cálculos NBR 16690 e NBR 5410</li>
             <li>Payback realista com degradação e taxa mínima</li>
-            <li>Documentos auxiliares para homologação</li>
+            <li>Documentos para homologação</li>
           </ul>
         </div>`;
       document.getElementById('voltarHome').addEventListener('click', () => navegar('home'));
@@ -276,7 +273,11 @@
       const state = { step:0, answers:{}, messages:[] };
       const questions = [
         { id:'cep', question:'Qual o seu CEP? (só números)', type:'input', placeholder:'01001000', validate: v => /^\d{8}$/.test(v), error:'CEP deve ter 8 dígitos.' },
-        { id:'historico', question:'Vamos usar o histórico dos últimos 12 meses? Digite os valores separados por vírgula (Jan a Dez).', type:'input', placeholder:'450,480,500,520,550,600,620,600,550,500,480,450', validate: v => v.split(',').length===12 && v.split(',').every(n=>!isNaN(n)&&+n>0), error:'Digite exatamente 12 valores.' },
+        { id:'historico', question:'Agora o histórico dos últimos 12 meses (Jan a Dez). Digite os 12 valores separados por vírgula. Exemplo: 450,480,500,520,550,600,620,600,550,500,480,450', type:'input', placeholder:'450,480,500,520,550,600,620,600,550,500,480,450', validate: v => {
+          // Aceita vírgula, ponto-e-vírgula ou espaço
+          const valores = v.split(/[,;\s]+/).filter(x => x !== '');
+          return valores.length === 12 && valores.every(n => !isNaN(n) && +n > 0);
+        }, error:'Digite exatamente 12 valores numéricos separados por vírgula.' },
         { id:'tarifa', question:'Qual a tarifa de energia? (R$/kWh)', type:'input', placeholder:'0.90', validate: v => !isNaN(v) && +v > 0, error:'Valor inválido.' },
         { id:'nome', question:'Seu nome:', type:'input', placeholder:'Nome completo', validate: v => v.trim().length>0, error:'Obrigatório.' },
         { id:'email', question:'E-mail para proposta:', type:'input', placeholder:'email@exemplo.com', validate: v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), error:'E-mail inválido.' },
@@ -330,7 +331,8 @@
           const coords = await buscarCoordenadas(end);
           if (!coords) throw new Error('Coordenadas não encontradas');
           const tarifa = parseFloat(state.answers.tarifa);
-          const consumoHistorico = state.answers.historico.split(',').map(Number);
+          // Aceita vírgula, ponto-e-vírgula ou espaço
+          const consumoHistorico = state.answers.historico.split(/[,;\s]+/).filter(x => x !== '').map(Number);
           const irrad = await obterIrradiacao(coords.lat, coords.lon);
           const resultado = calcular(consumoHistorico, tarifa, irrad, 'monofasico');
           resultado.endereco = `${end.logradouro}, ${end.bairro} - ${end.localidade}/${end.uf}`;
@@ -408,7 +410,7 @@
       document.getElementById('salvarProposta').addEventListener('click', () => {
         if (!d.cliente.nome) return alert('Preencha o nome do cliente.');
         salvarProposta(d);
-        alert('Proposta salva com sucesso!');
+        alert('Proposta salva!');
       });
       document.getElementById('baixarPDF').addEventListener('click', () => gerarPDFProposta(d));
       document.getElementById('gerarContrato').addEventListener('click', () => gerarPDFContrato(d));
@@ -427,7 +429,7 @@
                 <div><strong>${p.cliente.nome}</strong><br>${p.endereco}<br>${p.potenciaReal.toFixed(2)} kWp - R$ ${p.investimento.toFixed(2)}</div>
                 <div class="flex gap-2">
                   <button class="btn btn-primary" data-id="${p.id}" id="ver_${p.id}">Ver</button>
-                  <button class="btn btn-info" data-id="${p.id}" id="pdf_${p.id}">PDF Proposta</button>
+                  <button class="btn btn-info" data-id="${p.id}" id="pdf_${p.id}">PDF</button>
                   <button class="btn btn-success" data-id="${p.id}" id="contrato_${p.id}">Contrato</button>
                   <button class="btn btn-primary" data-id="${p.id}" id="concessionaria_${p.id}">Concessionária</button>
                 </div>
@@ -443,7 +445,7 @@
       });
     }
 
-    // ========== PDFs PROFISSIONAIS ==========
+    // ========== PDFs ==========
     function gerarPDFProposta(d) {
       const doc = new window.jspdf.jsPDF();
       doc.setFontSize(18); doc.text('Sant\'Ana Solar - Proposta Comercial', 15, 20);
@@ -462,23 +464,12 @@
       let y = 20;
       doc.setFontSize(18); doc.text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', 15, y); y+=12;
       doc.setFontSize(10);
-      doc.text('Pelo presente instrumento particular, as partes:', 15, y); y+=8;
-      doc.text(`CONTRATANTE: ${d.cliente.nome}, portador do CPF/CNPJ _____, residente em ${d.endereco}`, 15, y); y+=8;
-      doc.text(`CONTRATADA: Sant'Ana Solar Ltda., CNPJ _____, com sede em _____`, 15, y); y+=10;
+      doc.text(`CONTRATANTE: ${d.cliente.nome}, residente em ${d.endereco}`, 15, y); y+=8;
+      doc.text('CONTRATADA: Sant\'Ana Solar Ltda.', 15, y); y+=10;
       doc.text('CLÁUSULA 1ª - DO OBJETO', 15, y); y+=6;
-      doc.text('A CONTRATADA se obriga a fornecer e instalar um sistema de geração de energia solar fotovoltaico, conforme especificações:', 15, y); y+=6;
-      doc.text(`Potência: ${d.potenciaReal.toFixed(2)} kWp`, 20, y); y+=6;
-      doc.text(`Equipamentos: ${d.numModulos} painéis de 550W e ${d.inversor}`, 20, y); y+=6;
-      doc.text(`Valor total: R$ ${d.investimento.toFixed(2)}`, 20, y); y+=10;
+      doc.text(`A CONTRATADA se obriga a fornecer e instalar um sistema de geração de energia solar de ${d.potenciaReal.toFixed(2)} kWp.`, 15, y); y+=10;
       doc.text('CLÁUSULA 2ª - DO PAGAMENTO', 15, y); y+=6;
-      doc.text('O pagamento será realizado conforme condições acordadas entre as partes.', 15, y); y+=10;
-      doc.text('CLÁUSULA 3ª - DO PRAZO', 15, y); y+=6;
-      doc.text('A instalação será realizada em até 30 dias úteis após a assinatura e pagamento inicial.', 15, y); y+=10;
-      doc.text('CLÁUSULA 4ª - DAS OBRIGAÇÕES', 15, y); y+=6;
-      doc.text('A CONTRATADA se responsabiliza pela homologação junto à concessionária.', 15, y); y+=6;
-      doc.text('O CONTRATANTE se compromete a fornecer acesso ao local e documentação necessária.', 15, y); y+=10;
-      doc.text('CLÁUSULA 5ª - DO FORO', 15, y); y+=6;
-      doc.text('Fica eleito o foro da comarca do CONTRATANTE para dirimir quaisquer dúvidas.', 15, y); y+=15;
+      doc.text(`Valor total: R$ ${d.investimento.toFixed(2)}.`, 15, y); y+=10;
       doc.text('Assinaturas:', 15, y); y+=6;
       doc.text('__________________________________', 15, y); y+=6;
       doc.text('Contratante', 15, y); y+=10;
@@ -490,32 +481,25 @@
     function gerarPDFConcessionaria(d) {
       const doc = new window.jspdf.jsPDF();
       let y = 20;
-      doc.setFontSize(16); doc.text('PROJETO FOTOVOLTAICO - DOCUMENTAÇÃO AUXILIAR', 15, y); y+=12;
+      doc.setFontSize(16); doc.text('DOCUMENTAÇÃO AUXILIAR - HOMOLOGAÇÃO', 15, y); y+=12;
       doc.setFontSize(9);
-      doc.text('Este documento serve como base para elaboração do projeto de homologação por profissional habilitado.', 15, y); y+=8;
-      doc.text('Não substitui a ART nem a responsabilidade técnica do engenheiro registrado no CREA.', 15, y); y+=12;
+      doc.text('Este documento serve como base para o projeto de homologação por profissional habilitado.', 15, y); y+=12;
 
       doc.setFontSize(12); doc.text('1. DADOS DO TITULAR', 15, y); y+=8;
       doc.setFontSize(10);
       doc.text(`Nome: ${d.cliente.nome}`, 20, y); y+=6;
       doc.text(`Endereço: ${d.endereco}`, 20, y); y+=6;
-      doc.text(`CEP: ${d.cep}`, 20, y); y+=6;
-      doc.text(`Telefone: ${d.cliente.telefone || 'Não informado'}`, 20, y); y+=6;
-      doc.text(`E-mail: ${d.cliente.email || 'Não informado'}`, 20, y); y+=10;
+      doc.text(`CEP: ${d.cep}`, 20, y); y+=10;
 
       doc.setFontSize(12); doc.text('2. ESPECIFICAÇÕES DO SISTEMA', 15, y); y+=8;
       doc.setFontSize(10);
       doc.text(`Potência instalada: ${d.potenciaReal.toFixed(2)} kWp`, 20, y); y+=6;
-      doc.text(`Painéis: ${d.numModulos} x 550Wp – Silício Monocristalino (Canadian/Jinko)`, 20, y); y+=6;
+      doc.text(`Painéis: ${d.numModulos} x 550Wp – Silício Monocristalino`, 20, y); y+=6;
       doc.text(`Inversor: ${d.inversor}`, 20, y); y+=6;
-      doc.text(`Tensão de operação: 220V / Frequência: 60Hz`, 20, y); y+=6;
-      doc.text(`Geração média mensal estimada: ${d.geracaoMensal.reduce((a,b)=>a+b,0).toFixed(0)} kWh`, 20, y); y+=6;
-      doc.text('Normas: NBR 16690, NBR 5410, normas da concessionária local.', 20, y); y+=10;
+      doc.text(`Geração média mensal estimada: ${d.geracaoMensal.reduce((a,b)=>a+b,0).toFixed(0)} kWh`, 20, y); y+=10;
 
       doc.setFontSize(12); doc.text('3. DIAGRAMA UNIFILAR ESQUEMÁTICO', 15, y); y+=12;
-      // Desenho básico
-      doc.setLineWidth(0.5);
-      doc.rect(20, y, 35, 15); doc.text('Painéis 550W', 22, y+10);
+      doc.rect(20, y, 35, 15); doc.text('Painéis', 22, y+10);
       doc.rect(65, y, 30, 15); doc.text('String Box', 67, y+10);
       doc.rect(105, y, 30, 15); doc.text('Inversor', 107, y+10);
       doc.rect(145, y, 30, 15); doc.text('Disj. CA', 147, y+10);
