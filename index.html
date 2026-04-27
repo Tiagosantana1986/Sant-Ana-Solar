@@ -7,10 +7,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
-  <script src="https://unpkg.com/recharts@2/umd/Recharts.js"></script>
   <script src="https://unpkg.com/jspdf@2/dist/jspdf.umd.min.js"></script>
   <style>
     body { font-family: 'Segoe UI', system-ui, sans-serif; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: center; }
+    th { background-color: #f8fafc; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -22,7 +24,7 @@
     // ============================================
     const IRRADIACAO_MENSAL_SP = [5.2, 5.3, 4.9, 4.5, 3.9, 3.6, 3.9, 4.5, 4.8, 5.0, 5.3, 5.2];
 
-    function getIrradiacaoMedia(lat, lon) {
+    function getIrradiacaoMedia() {
       const soma = IRRADIACAO_MENSAL_SP.reduce((a, b) => a + b, 0);
       return soma / 12;
     }
@@ -99,10 +101,9 @@
     }
 
     // ============================================
-    // COMPONENTES REACT (criados com createElement)
+    // COMPONENTES REACT (puro JavaScript, sem JSX)
     // ============================================
 
-    // Tela de Upload
     function UploadConta({ onPropostaGerada }) {
       const [consumo, setConsumo] = React.useState(500);
       const [tarifa, setTarifa] = React.useState(0.9);
@@ -110,25 +111,33 @@
 
       const gerarProposta = () => {
         setLoading(true);
-        // Simula processamento interno (tudo síncrono)
-        const hsp = getIrradiacaoMedia(-23.5, -46.6);
-        const dim = dimensionarSistema(consumo, hsp);
-        const somaGeracao = dim.geracaoMensal.reduce((a, b) => a + b, 0);
-        const economiaMensal = (somaGeracao / 12) * tarifa;
-        const economiaAnual = economiaMensal * 12;
-        const payback = calcularPaybackSimples(dim.custoEstimado, economiaAnual);
-        const vpl = calcularVPL(dim.custoEstimado, economiaAnual);
-        const financiamento = gerarOpcoesFinanciamento(dim.custoEstimado);
-        const bom = gerarBOM(dim);
-        
-        const proposta = {
-          dimensionamento: dim,
-          economia: { mensal: economiaMensal, anual: economiaAnual, payback, vpl },
-          financiamento,
-          bom
-        };
-        setLoading(false);
-        onPropostaGerada(proposta);
+        // Pequeno timeout para garantir que o estado de loading seja renderizado
+        setTimeout(() => {
+          try {
+            const hsp = getIrradiacaoMedia();
+            const dim = dimensionarSistema(consumo, hsp);
+            const somaGeracao = dim.geracaoMensal.reduce((a, b) => a + b, 0);
+            const economiaMensal = (somaGeracao / 12) * tarifa;
+            const economiaAnual = economiaMensal * 12;
+            const payback = calcularPaybackSimples(dim.custoEstimado, economiaAnual);
+            const vpl = calcularVPL(dim.custoEstimado, economiaAnual);
+            const financiamento = gerarOpcoesFinanciamento(dim.custoEstimado);
+            const bom = gerarBOM(dim);
+            
+            const proposta = {
+              dimensionamento: dim,
+              economia: { mensal: economiaMensal, anual: economiaAnual, payback, vpl },
+              financiamento,
+              bom
+            };
+            setLoading(false);
+            onPropostaGerada(proposta);
+          } catch (error) {
+            console.error('Erro ao gerar proposta:', error);
+            setLoading(false);
+            alert('Ocorreu um erro ao processar. Veja o console.');
+          }
+        }, 100);
       };
 
       return React.createElement('main', { className: 'flex flex-col items-center justify-center min-h-screen px-4' },
@@ -159,22 +168,22 @@
       );
     }
 
-    // Tela de Viabilidade com Gráfico
     function Viabilidade({ proposta, onVerProposta }) {
       const { dimensionamento, economia } = proposta;
       const meses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      const dadosGrafico = dimensionamento.geracaoMensal.map((v, i) => ({
-        mes: meses[i],
-        'Geração (kWh)': +v.toFixed(0),
-        'Consumo (kWh)': dimensionamento.consumoMedioMensal,
-      }));
-
-      // Recharts exige componentes específicos
-      const { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
+      
+      const linhasTabela = dimensionamento.geracaoMensal.map((v, i) => {
+        return React.createElement('tr', { key: i },
+          React.createElement('td', null, meses[i]),
+          React.createElement('td', null, v.toFixed(0)),
+          React.createElement('td', null, dimensionamento.consumoMedioMensal)
+        );
+      });
 
       return React.createElement('main', { className: 'container mx-auto px-4 py-8 max-w-4xl' },
         React.createElement('h1', { className: 'text-2xl font-bold mb-6' }, '📈 Estudo de Viabilidade'),
-        // Card Sistema
+        
+        // Card do sistema
         React.createElement('div', { className: 'bg-white rounded-xl shadow-md p-6 mb-6' },
           React.createElement('h2', { className: 'text-lg font-semibold mb-2' }, 'Sistema Projetado'),
           React.createElement('p', null, 'Potência: ', React.createElement('strong', null, `${dimensionamento.potenciaReal.toFixed(2)} kWp`)),
@@ -182,21 +191,22 @@
           React.createElement('p', null, 'Inversor: ', React.createElement('strong', null, dimensionamento.inversorSugerido)),
           React.createElement('p', null, 'Investimento: ', React.createElement('strong', null, `R$ ${dimensionamento.custoEstimado.toFixed(2)}`))
         ),
-        // Gráfico
-        React.createElement('div', { className: 'bg-white rounded-xl shadow-md p-6 mb-6' },
-          React.createElement('h2', { className: 'text-lg font-semibold mb-2' }, 'Geração vs Consumo Mensal'),
-          React.createElement(ResponsiveContainer, { width: '100%', height: 300 },
-            React.createElement(BarChart, { data: dadosGrafico },
-              React.createElement(CartesianGrid, { strokeDasharray: '3 3' }),
-              React.createElement(XAxis, { dataKey: 'mes' }),
-              React.createElement(YAxis, null),
-              React.createElement(Tooltip, null),
-              React.createElement(Legend, null),
-              React.createElement(Bar, { dataKey: 'Geração (kWh)', fill: '#facc15' }),
-              React.createElement(Bar, { dataKey: 'Consumo (kWh)', fill: '#94a3b8' })
-            )
+        
+        // Tabela de geração mensal
+        React.createElement('div', { className: 'bg-white rounded-xl shadow-md p-6 mb-6 overflow-x-auto' },
+          React.createElement('h2', { className: 'text-lg font-semibold mb-2' }, 'Geração vs Consumo Mensal (kWh)'),
+          React.createElement('table', { className: 'w-full' },
+            React.createElement('thead', null,
+              React.createElement('tr', null,
+                React.createElement('th', null, 'Mês'),
+                React.createElement('th', null, 'Geração'),
+                React.createElement('th', null, 'Consumo')
+              )
+            ),
+            React.createElement('tbody', null, linhasTabela)
           )
         ),
+        
         // Indicadores financeiros
         React.createElement('div', { className: 'bg-white rounded-xl shadow-md p-6 mb-6' },
           React.createElement('h2', { className: 'text-lg font-semibold mb-2' }, 'Indicadores Financeiros'),
@@ -205,7 +215,7 @@
           React.createElement('p', null, 'Payback: ', React.createElement('strong', null, `${economia.payback.toFixed(1)} anos`)),
           React.createElement('p', null, 'VPL (25 anos): ', React.createElement('strong', null, `R$ ${economia.vpl.toFixed(2)}`))
         ),
-        // Botão próxima tela
+        
         React.createElement('button', {
           onClick: onVerProposta,
           className: 'w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-3 rounded-full transition'
@@ -213,32 +223,36 @@
       );
     }
 
-    // Tela de Proposta Final
     function Proposta({ proposta, onVoltar }) {
       const { dimensionamento, economia, bom, financiamento } = proposta;
 
       const handleDownloadPDF = () => {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.setFontSize(16);
-        doc.text('Proposta Comercial - Uber Solar', 10, 10);
-        doc.setFontSize(12);
-        doc.text(`Potência: ${dimensionamento.potenciaReal.toFixed(2)} kWp`, 10, 20);
-        doc.text(`Módulos: ${dimensionamento.numeroModulos}x 550W`, 10, 30);
-        doc.text(`Inversor: ${dimensionamento.inversorSugerido}`, 10, 40);
-        doc.text(`Investimento: R$ ${dimensionamento.custoEstimado.toFixed(2)}`, 10, 50);
-        doc.text(`Economia anual: R$ ${economia.anual.toFixed(2)}`, 10, 60);
-        doc.text(`Payback: ${economia.payback.toFixed(1)} anos`, 10, 70);
-        doc.text('--- Lista de Materiais ---', 10, 80);
-        bom.forEach((item, i) => {
-          doc.text(`${item.descricao} - ${item.quantidade} ${item.unidade}`, 10, 90 + i * 7);
-        });
-        doc.save('proposta-uber-solar.pdf');
+        try {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF();
+          doc.setFontSize(16);
+          doc.text('Proposta Comercial - Uber Solar', 10, 10);
+          doc.setFontSize(12);
+          doc.text(`Potência: ${dimensionamento.potenciaReal.toFixed(2)} kWp`, 10, 20);
+          doc.text(`Módulos: ${dimensionamento.numeroModulos}x 550W`, 10, 30);
+          doc.text(`Inversor: ${dimensionamento.inversorSugerido}`, 10, 40);
+          doc.text(`Investimento: R$ ${dimensionamento.custoEstimado.toFixed(2)}`, 10, 50);
+          doc.text(`Economia anual: R$ ${economia.anual.toFixed(2)}`, 10, 60);
+          doc.text(`Payback: ${economia.payback.toFixed(1)} anos`, 10, 70);
+          doc.text('--- Lista de Materiais ---', 10, 80);
+          bom.forEach((item, i) => {
+            doc.text(`${item.descricao} - ${item.quantidade} ${item.unidade}`, 10, 90 + i * 7);
+          });
+          doc.save('proposta-uber-solar.pdf');
+        } catch (error) {
+          console.error('Erro ao gerar PDF:', error);
+          alert('Erro ao gerar PDF. Veja o console.');
+        }
       };
 
       return React.createElement('main', { className: 'container mx-auto px-4 py-8 max-w-4xl' },
         React.createElement('h1', { className: 'text-2xl font-bold mb-6' }, '📄 Proposta Final'),
-        // Resumo
+        
         React.createElement('div', { className: 'bg-white rounded-xl shadow-md p-6 mb-6' },
           React.createElement('h2', { className: 'text-lg font-semibold mb-2' }, 'Resumo do Projeto'),
           React.createElement('p', null, React.createElement('strong', null, 'Potência: '), `${dimensionamento.potenciaReal.toFixed(2)} kWp`),
@@ -246,7 +260,7 @@
           React.createElement('p', null, React.createElement('strong', null, 'Inversor: '), dimensionamento.inversorSugerido),
           React.createElement('p', null, React.createElement('strong', null, 'Investimento: '), `R$ ${dimensionamento.custoEstimado.toFixed(2)}`)
         ),
-        // BOM
+        
         React.createElement('div', { className: 'bg-white rounded-xl shadow-md p-6 mb-6' },
           React.createElement('h2', { className: 'text-lg font-semibold mb-2' }, 'Lista de Materiais (BOM)'),
           React.createElement('ul', { className: 'space-y-1' },
@@ -258,7 +272,7 @@
             )
           )
         ),
-        // Financiamento
+        
         React.createElement('div', { className: 'bg-white rounded-xl shadow-md p-6 mb-6' },
           React.createElement('h2', { className: 'text-lg font-semibold mb-2' }, 'Opções de Financiamento'),
           financiamento.map((f, i) =>
@@ -268,7 +282,7 @@
             )
           )
         ),
-        // Botões
+        
         React.createElement('div', { className: 'flex gap-4' },
           React.createElement('button', {
             onClick: handleDownloadPDF,
@@ -282,34 +296,40 @@
       );
     }
 
-    // App principal com roteamento simples
     function App() {
       const [tela, setTela] = React.useState('upload');
       const [proposta, setProposta] = React.useState(null);
 
       const handlePropostaGerada = (prop) => {
+        console.log('Proposta gerada, mudando para viabilidade');
         setProposta(prop);
         setTela('viabilidade');
       };
 
+      console.log('Tela atual:', tela);
+
       if (tela === 'upload') {
         return React.createElement(UploadConta, { onPropostaGerada: handlePropostaGerada });
       } else if (tela === 'viabilidade') {
-        return React.createElement(Viabilidade, {
-          proposta: proposta,
-          onVerProposta: () => setTela('proposta')
-        });
+        return React.createElement(Viabilidade, { proposta, onVerProposta: () => setTela('proposta') });
       } else if (tela === 'proposta') {
-        return React.createElement(Proposta, {
-          proposta: proposta,
-          onVoltar: () => setTela('upload')
-        });
+        return React.createElement(Proposta, { proposta, onVoltar: () => setTela('upload') });
       }
       return null;
     }
 
-    // Renderiza a aplicação no elemento root
-    ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+    // Renderiza com tratamento de erro
+    try {
+      const rootElement = document.getElementById('root');
+      if (rootElement) {
+        ReactDOM.createRoot(rootElement).render(React.createElement(App));
+      } else {
+        console.error('Elemento root não encontrado');
+      }
+    } catch (error) {
+      console.error('Erro ao renderizar aplicação:', error);
+      document.getElementById('root').innerHTML = '<p class="text-red-500 p-8">Erro crítico ao carregar o aplicativo. Veja o console (F12).</p>';
+    }
   </script>
 </body>
 </html>
